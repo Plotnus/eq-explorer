@@ -5,10 +5,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 
-type MyGraph = Graph<(),EdgeValue>;
 type UpdateFn = Rc<dyn Fn(&mut HashMap<NodeIndex,f32>, HashMap<String,NodeIndex>)>;
 type Value = f32;
-type EdgeValue = f32;
 struct NodeSpecification {
     name: String,
     initial_value: f32,
@@ -29,10 +27,13 @@ impl MyGraphBuilder {
     }
 
     fn build(self) -> SomeGraph {
+        type DependencyGraph = Graph<(),f32>;
+        let mut graph: DependencyGraph = Graph::new();
+
         let mut out = SomeGraph::new();
         // first lets create all the nodes, then we'll connect them
         for n in &self.nodes {
-            let id = out.graph.add_node(());
+            let id = graph.add_node(());
             out.names.insert(id, n.name.clone());
             out.values.insert(id, n.initial_value);
             out.ids.insert(n.name.clone(), id);
@@ -43,7 +44,7 @@ impl MyGraphBuilder {
         // now lets add edges for who the node depends on
         for n in &self.nodes {
             for &dependency in &n.depends_on {
-                out.graph.add_edge(
+                graph.add_edge(
                     out.ids[dependency], 
                     out.ids[&n.name],
                     //(),
@@ -55,7 +56,7 @@ impl MyGraphBuilder {
         // input_node - a node that can be updated
         for i in 0..out.ids.len() {
             let node_index = NodeIndex::new(i);
-            let path = petgraph::algo::bellman_ford(&out.graph, node_index).unwrap();
+            let path = petgraph::algo::bellman_ford(&graph, node_index).unwrap();
             let mut max_distances = 
                 path.distances
                     .iter()
@@ -76,7 +77,6 @@ impl MyGraphBuilder {
     }
 }
 struct SomeGraph {
-    graph: MyGraph, // used to track dependencies... is invisible outside of module
     values: HashMap<NodeIndex, Value>, // stores the value of each node. Not much gained keeping it out of graph
     names: HashMap<NodeIndex, String>, // keeping it out of graph allows us to print stuff about graph
     ids: HashMap<String,NodeIndex>, // name -> id
@@ -86,7 +86,6 @@ struct SomeGraph {
 impl SomeGraph {
     fn new() -> Self {
         Self {
-            graph: MyGraph::new(),
             update_fns: HashMap::new(),
             update_path: HashMap::new(),
             values: HashMap::new(),
@@ -95,12 +94,14 @@ impl SomeGraph {
         }
     }
     
-    fn print_dependencies_for(&self, name: &str) {
+    fn print_update_order_for(&self, name: &str) {
+        // TODO: have handle case/error of name being incorrect
         print!("Dependencies for {}: ", name);
         let node_id = self.ids[name];
-        let mut neighbors_iter = self.graph.neighbors_directed(node_id, Incoming).detach();
-        while let Some(node) = neighbors_iter.next_node(&self.graph) {
-            print!("{},", self.names[&node]);
+        if let Some(nodes) = self.update_path.get(&node_id) {
+            for node_id in nodes {
+                print!("{}", self.names[node_id]);
+            }
         }
         println!();
     }
@@ -159,9 +160,9 @@ fn main() {
             .build()
     };
     
-    my_graph.print_dependencies_for("a");
-    my_graph.print_dependencies_for("b");
-    my_graph.print_dependencies_for("c");
-    my_graph.print_dependencies_for("d");
-    my_graph.print_dependencies_for("e");
+    my_graph.print_update_order_for("a");
+    my_graph.print_update_order_for("b");
+    my_graph.print_update_order_for("c");
+    my_graph.print_update_order_for("d");
+    my_graph.print_update_order_for("e");
 }
