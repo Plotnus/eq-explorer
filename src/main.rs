@@ -1,6 +1,5 @@
 #![feature(associated_type_bounds)]
 use petgraph::graph::{Graph,NodeIndex};
-use petgraph::Direction::{Incoming};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -32,21 +31,21 @@ impl MyGraphBuilder {
 
         let mut out = ExpressionTree::new();
         // first lets create all the nodes, then we'll connect them
-        for n in &self.nodes {
+        for (i,n) in self.nodes.iter().enumerate() {
             let id = graph.add_node(());
-            out.names.insert(id, n.name.clone());
-            out.values.insert(id, n.initial_value);
-            out.ids.insert(n.name.clone(), id);
-            if let Some(update_fn) = &n.update_fn {
-                out.update_fns.insert(id, update_fn.clone());
-            }
+            assert_eq!(i,id.index());
+            out.ids.insert(n.name.clone(), id.index());
+            out.names.push(n.name.clone());
+            out.values.push(n.initial_value);
+            out.update_fns.push(n.update_fn.clone());
         }
-        // now lets add edges for who the node depends on
+        // now lets build the edges for the dependency graph we're using to
+        // calculate the update order for each node which we then cache
         for n in &self.nodes {
             for &dependency in &n.depends_on {
                 graph.add_edge(
-                    out.ids[dependency], 
-                    out.ids[&n.name],
+                    NodeIndex::new(out.ids[dependency]), 
+                    NodeIndex::new(out.ids[&n.name]),
                     //(),
                     -1., // we do this weight so we can update based on longest path to
                 );
@@ -66,30 +65,36 @@ impl MyGraphBuilder {
                     .collect::<Vec<(f32,usize)>>();
             // sort the index by distance
             max_distances.sort_by(|a,b| a.partial_cmp(b).unwrap());
-            let update_path: Vec<NodeIndex> = {
+            let update_path: Vec<usize> = {
                 max_distances.iter()
-                    .map(|(_,i)| NodeIndex::new(*i))
-                    .collect::<Vec<NodeIndex>>()
+                    .map(|(_,i)| *i)
+                    .collect()
             };
-            out.update_path.insert(node_index, update_path);
+            out.update_path.push(update_path);
         }
         out
     }
 }
 struct ExpressionTree {
-    values: HashMap<NodeIndex, Value>, // stores the value of each node. Not much gained keeping it out of graph
-    names: HashMap<NodeIndex, String>, // keeping it out of graph allows us to print stuff about graph
-    ids: HashMap<String,NodeIndex>, // name -> id
-    update_fns: HashMap<NodeIndex,UpdateFn>,
-    update_path: HashMap<NodeIndex,Vec<NodeIndex>>, // update order for consistence
+    // useful for going from node name -> node index
+    ids: HashMap<String,usize>,
+    // stores the values of each node
+    values: Vec<Value>,
+    // stores the names of each node
+    names: Vec<String>,
+
+    // stores the instructions for how to update each node when it is changed
+    update_fns: Vec<Option<UpdateFn>>,
+
+    update_path: Vec<Vec<usize>>, // update order for consistence
 }
 impl ExpressionTree {
     fn new() -> Self {
         Self {
-            update_fns: HashMap::new(),
-            update_path: HashMap::new(),
-            values: HashMap::new(),
-            names: HashMap::new(),
+            update_fns: Vec::new(),
+            update_path: Vec::new(),
+            values: Vec::new(),
+            names: Vec::new(),
             ids: HashMap::new(),
         }
     }
@@ -97,11 +102,9 @@ impl ExpressionTree {
     fn print_update_order_for(&self, name: &str) {
         // TODO: have handle case/error of name being incorrect
         print!("Dependencies for {}: ", name);
-        let node_id = self.ids[name];
-        if let Some(nodes) = self.update_path.get(&node_id) {
-            for node_id in nodes {
-                print!("{}", self.names[node_id]);
-            }
+        let node_index = self.ids[name];
+        for &i in &self.update_path[node_index] {
+            print!("{}", &self.names[i]);
         }
         println!();
     }
