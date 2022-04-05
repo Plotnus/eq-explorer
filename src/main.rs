@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 
-type UpdateFn = Rc<dyn Fn(&mut HashMap<NodeIndex,f32>, HashMap<String,NodeIndex>)>;
+type UpdateFn = Rc<dyn Fn(&mut Vec<f32>, &HashMap<String,usize>)>;
 type Value = f32;
 struct NodeSpecification {
     name: String,
@@ -108,6 +108,36 @@ impl ExpressionTree {
         }
         println!();
     }
+    
+    fn update_value(&mut self, node_name: &str, value: Value) {
+        let i = match self.ids.get(node_name) {
+            Some(&index) => index,
+            _ => {
+                println!("No value {} found", node_name);
+                return;
+            }
+        };
+        // TODO: add check that this is a leaf node?
+        println!("Updating \"{}\" from {} to {}", node_name, self.values[i], value);
+        self.values[i] = value;
+        for &i in &self.update_paths[i] {
+            let old_value = self.values[i];
+
+            if let Some(f) = &self.update_fns[i] {
+                f(&mut self.values, &self.ids);
+            }
+            let new_value = self.values[i];
+            println!("Updated \"{}\" from {:.2} to {:.2}", self.names[i], old_value, new_value);
+        }
+    }
+    
+    fn print(&self) {
+        print!("NodeValues: ");
+        for i in 0..self.names.len() {
+            print!("({},{}),", self.names[i], self.values[i]);
+        }
+        println!();
+    }
 }
 
 
@@ -115,19 +145,19 @@ fn main() {
     let node_specifications = vec![
         NodeSpecification {
             name: "a".to_string(),
-            initial_value: 13.,
+            initial_value: 1.,
             depends_on: vec![],
             update_fn: None,
         },
         NodeSpecification {
             name: "b".to_string(),
-            initial_value: 12.0,
+            initial_value: 5.,
             depends_on: vec![],
             update_fn: None,
         },
         NodeSpecification {
             name: "c".to_string(),
-            initial_value: 42.0,
+            initial_value: 10.,
             depends_on: vec![],
             update_fn: None,
         },
@@ -137,8 +167,8 @@ fn main() {
             depends_on: vec!["a","b"],
             update_fn: Some(Rc::new(
                 |values,ids| {
-                    let a = values[&ids["a"]];
-                    let b = values[&ids["b"]];
+                    let a = values[ids["a"]];
+                    let b = values[ids["b"]];
                     let d = a * b;
                     values.insert(ids["d"], d);
             })),
@@ -149,23 +179,32 @@ fn main() {
             depends_on: vec!["b","d","c"],
             update_fn: Some(Rc::new(
                 |values,ids| {
-                    let b = values[&ids["b"]];
-                    let d = values[&ids["d"]];
-                    let c = values[&ids["c"]];
+                    let b = values[ids["b"]];
+                    let d = values[ids["d"]];
+                    let c = values[ids["c"]];
                     let e = b * d * c;
                     values.insert(ids["e"], e);
             })),
         },
     ];
-    let my_graph = {
+    let mut my_graph = {
         MyGraphBuilder::new()
             .add_nodes(node_specifications)
             .build()
     };
     
-    my_graph.print_update_order_for("a");
-    my_graph.print_update_order_for("b");
-    my_graph.print_update_order_for("c");
-    my_graph.print_update_order_for("d");
-    my_graph.print_update_order_for("e");
+//    my_graph.print_update_order_for("a");
+//    my_graph.print_update_order_for("b");
+//    my_graph.print_update_order_for("c");
+//    my_graph.print_update_order_for("d");
+//    my_graph.print_update_order_for("e");
+    
+    my_graph.print();
+    
+    my_graph.update_value("a", 2.);
+    my_graph.print();
+    my_graph.update_value("b", 3.);
+    my_graph.print();
+    my_graph.update_value("c", 4.);
+    my_graph.print();
 }
