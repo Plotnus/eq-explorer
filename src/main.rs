@@ -1,9 +1,22 @@
 #![feature(associated_type_bounds)]
 mod expression_tree;
-use expression_tree::{NodeSpecification,MyGraphBuilder};
+use expression_tree::{NodeSpecification,MyGraphBuilder, ExpressionTree};
 use std::rc::Rc;
 
 fn main() {
+    let mut expr_tree = build_expression_tree();
+    
+    expr_tree.print();
+    
+    expr_tree.update_value("a", 2.);
+    expr_tree.print();
+    expr_tree.update_value("b", 3.);
+    expr_tree.print();
+    expr_tree.update_value("c", 4.);
+    expr_tree.print();
+}
+
+fn build_expression_tree() -> ExpressionTree {
     let node_specifications = vec![
         NodeSpecification {
             name: "a".to_string(),
@@ -49,18 +62,8 @@ fn main() {
             })),
         },
     ];
-    let mut my_graph = {
-        MyGraphBuilder::new()
-            .add_nodes(node_specifications)
-            .build()
-    };
-    
-    my_graph.print();
-    
-    my_graph.update_value("a", 2.);
-    my_graph.print();
-    my_graph.update_value("b", 3.);
-    my_graph.print();
-    my_graph.update_value("c", 4.);
-    my_graph.print();
+
+    MyGraphBuilder::new()
+        .add_nodes(node_specifications)
+        .build()
 }
