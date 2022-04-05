@@ -70,7 +70,7 @@ impl MyGraphBuilder {
                     .map(|(_,i)| *i)
                     .collect()
             };
-            out.update_path.push(update_path);
+            out.update_paths.push(update_path);
         }
         out
     }
@@ -86,13 +86,13 @@ struct ExpressionTree {
     // stores the instructions for how to update each node when it is changed
     update_fns: Vec<Option<UpdateFn>>,
 
-    update_path: Vec<Vec<usize>>, // update order for consistence
+    update_paths: Vec<Vec<usize>>, // update order for consistence
 }
 impl ExpressionTree {
     fn new() -> Self {
         Self {
             update_fns: Vec::new(),
-            update_path: Vec::new(),
+            update_paths: Vec::new(),
             values: Vec::new(),
             names: Vec::new(),
             ids: HashMap::new(),
@@ -103,7 +103,7 @@ impl ExpressionTree {
         // TODO: have handle case/error of name being incorrect
         print!("Dependencies for {}: ", name);
         let node_index = self.ids[name];
-        for &i in &self.update_path[node_index] {
+        for &i in &self.update_paths[node_index] {
             print!("{}", &self.names[i]);
         }
         println!();
