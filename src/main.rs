@@ -101,10 +101,10 @@ impl ExpressionTree {
     
     fn print_update_order_for(&self, name: &str) {
         // TODO: have handle case/error of name being incorrect
-        print!("Dependencies for {}: ", name);
+        print!("on change to {}, we update: ", name);
         let node_index = self.ids[name];
         for &i in &self.update_paths[node_index] {
-            print!("{}", &self.names[i]);
+            print!("{}, ", &self.names[i]);
         }
         println!();
     }
