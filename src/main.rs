@@ -26,11 +26,11 @@ impl MyGraphBuilder {
         self
     }
 
-    fn build(self) -> SomeGraph {
+    fn build(self) -> ExpressionTree {
         type DependencyGraph = Graph<(),f32>;
         let mut graph: DependencyGraph = Graph::new();
 
-        let mut out = SomeGraph::new();
+        let mut out = ExpressionTree::new();
         // first lets create all the nodes, then we'll connect them
         for n in &self.nodes {
             let id = graph.add_node(());
@@ -76,14 +76,14 @@ impl MyGraphBuilder {
         out
     }
 }
-struct SomeGraph {
+struct ExpressionTree {
     values: HashMap<NodeIndex, Value>, // stores the value of each node. Not much gained keeping it out of graph
     names: HashMap<NodeIndex, String>, // keeping it out of graph allows us to print stuff about graph
     ids: HashMap<String,NodeIndex>, // name -> id
     update_fns: HashMap<NodeIndex,UpdateFn>,
     update_path: HashMap<NodeIndex,Vec<NodeIndex>>, // update order for consistence
 }
-impl SomeGraph {
+impl ExpressionTree {
     fn new() -> Self {
         Self {
             update_fns: HashMap::new(),
