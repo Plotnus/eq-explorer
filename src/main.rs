@@ -1,128 +1,93 @@
 #![feature(associated_type_bounds)]
-use petgraph::graph::Graph;
-use petgraph::Direction::{Incoming,Outgoing};
+use petgraph::graph::{Graph,NodeIndex};
+use petgraph::Direction::{Incoming};
+use std::collections::HashMap;
 
 
+type MyGraph = Graph<(),()>;
+struct NodeSpecification {
+    name: String,
+    initial_value: f32,
+    depends_on: Vec<&'static str>,
+}
+struct SomeGraph {
+    graph: MyGraph, // used to track dependencies... is invisible outside of module
+    values: HashMap<NodeIndex, f32>,
+    names: HashMap<NodeIndex, String>,
+    ids: HashMap<String,NodeIndex>,
+}
+impl SomeGraph {
+    fn new() -> Self {
+        Self {
+            graph: MyGraph::new(),
+            //update_fns: HashMap::new(),
+            values: HashMap::new(),
+            names: HashMap::new(),
+            ids: HashMap::new(),
+        }
+    }
+    
+    fn add_nodes(&mut self, nodes: &Vec<NodeSpecification>) {
+        // first lets create all the nodes, then we'll connect them
+        for n in nodes {
+            let id = self.graph.add_node(());
+            self.names.insert(id, n.name.clone());
+            self.values.insert(id, n.initial_value);
+            self.ids.insert(n.name.clone(), id);
+        }
+        // now lets add edges for who the node depends on
+        for n in nodes {
+            for &dependency in &n.depends_on {
+                self.graph.add_edge(
+                    self.ids[dependency], 
+                    self.ids[&n.name],
+                    (),
+                );
+            }
+        }
+    }
+    
+    fn print_dependencies_for(&self, name: &str) {
+        print!("Dependencies for {}: ", name);
+        let node_id = self.ids[name];
+        let mut neighbors_iter = self.graph.neighbors_directed(node_id, Incoming).detach();
+        while let Some(node) = neighbors_iter.next_node(&self.graph) {
+            print!("{},", self.names[&node]);
+        }
+        println!();
+    }
+}
 
-type MyGraph = Graph<f32,()>;
-type Names = Vec<&'static str>;
-type NodeUpdateFn = dyn Fn(&mut MyGraph, &Names);
+
 fn main() {
-    let mut node_names: Names= Vec::new();
-    let mut node_update_fns: Vec<&NodeUpdateFn> = Vec::new();
-
-    let mut graph = Graph::<f32,()>::new();// what are these &str for?
-    
-    // px node
-    let px = graph.add_node(42.);
-    let px_name = "px";
-    let px_fn = move |graph: &mut MyGraph, names: &Names| {
-        println!("updating node \"{}\" to new_value: {}",
-            names[px.index()],
-            graph[px],
-        );
-    }; 
-    node_names.push(px_name);
-    node_update_fns.push(&px_fn);
-
-    // sz node
-    let sz = graph.add_node(100.0);
-    let sz_name = "sz";
-    let sz_fn = move |graph: &mut MyGraph, names: &Names| {
-        println!("updating node \"{}\" to new_value: {}",
-            names[sz.index()],
-            graph[sz],
-        );
-    }; 
-    node_names.push(sz_name);
-    node_update_fns.push(&sz_fn);
-    
-    // pos_cost
-    let pos_cost = graph.add_node(0.);
-    let pos_cost_name = "Position Cost";
-    let pos_cost_fn = move |graph: &mut MyGraph, names: &Names| {
-        let node = pos_cost;
-        let node_name = names[node.index()];
-        let old_value = graph[node];
-        let new_value = graph[px] * graph[sz];
-        graph[node] = graph[px] * graph[sz];
-        println!("updated node \"{}\": {} ->  {}",
-            node_name,
-            old_value,
-            new_value,
-        );
-    };
-    node_names.push(pos_cost_name);
-    node_update_fns.push(&pos_cost_fn);
-    
-
-
-    node_update_fns[px.index()](&mut graph,&node_names);
-    node_update_fns[sz.index()](&mut graph,&node_names);
-    node_update_fns[pos_cost.index()](&mut graph,&node_names);
-    
-
-    // Ok, we have three nodes and pos_cost = px * sz;
-    // now how to make it automatically update when mutated?
-//    let sz = graph.add_node(100.);
-//    node_names.push("sz");
-//    node_update_fns.push(&|graph, names| {
-//        println!("updating node \"{}\" to new_value: {}",
-//            names[sz.index()],
-//            graph[sz],
-//        );
-//    });
-//    assert_eq!(px.index(), 0);
-    
-
-    
-    //node_update_fns[px.index()](&graph,&node_names);
-
-//    let b = graph.add_node("b"
-//    );
-//    let c = graph.add_node("c"
-//    );
-//    let d = graph.add_node("d"
-//    );
-//    let e = graph.add_node("e"
-//    );
-//    let f = graph.add_node("f"
-//    );
-//    graph.extend_with_edges(&[
-//        (f,e),(f,d),
-//        (e,a),(e,b),(e,c),
-//    ]);
-    
-
-/*
-    // Print Dependencies
-    print!("Dependencies for node {}: [", graph[e]);
-    let mut neighbors_iter = graph.neighbors(e).detach();
-    while let Some(node) = neighbors_iter.next_node(&graph) {
-        print!("{},", graph[node]);
-    }
-    println!("]");
-
-    // Maybe can do `neigmbors_directed(node, <Incoming|Out)
-    // Maybe can do `neigmbors_directed(node, <Incoming|Outgoing)
-    // can be found in petgraph::Direction
-    print!("Incoming for node {}: [", graph[e]);
-    let mut neighbors_iter = graph.neighbors_directed(e, Incoming).detach();
-    while let Some(node) = neighbors_iter.next_node(&graph) {
-        print!("{},", graph[node]);
-    }
-    println!("]");
-    println!();
-
-    // Maybe can do `neigmbors_directed(node, <Incoming|Out)
-    // Maybe can do `neigmbors_directed(node, <Incoming|Outgoing)
-    // can be found in petgraph::Direction
-    print!("Outgoing for node {}: [", graph[e]);
-    let mut neighbors_iter = graph.neighbors_directed(e, Outgoing).detach();
-    while let Some(node) = neighbors_iter.next_node(&graph) {
-        print!("({},{}),", node.index(),graph[node]);
-    }
-    println!("]");
-    println!();
-    */
+    let mut my_graph = SomeGraph::new();
+    let node_specs = vec![
+        NodeSpecification {
+            name: "a".to_string(),
+            initial_value: 13.,
+            depends_on: vec![],
+        },
+        NodeSpecification {
+            name: "b".to_string(),
+            initial_value: 12.0,
+            depends_on: vec![],
+        },
+        NodeSpecification {
+            name: "c".to_string(),
+            initial_value: 42.0,
+            depends_on: vec![],
+        },
+        NodeSpecification {
+            name: "d".to_string(),
+            initial_value: 64.0,
+            depends_on: vec!["a","b"],
+        },
+        NodeSpecification {
+            name: "e".to_string(),
+            initial_value: 32.0,
+            depends_on: vec!["b","d","c"],
+        },
+    ];
+    my_graph.add_nodes(&node_specs);
+    my_graph.print_dependencies_for("e");
 }
